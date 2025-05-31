@@ -1,10 +1,72 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>Mi Página Web</title>
-  </head>
-  <body>
-    <h1>¡Hola desde GitHub Pages!</h1>
-    <p>Bienvenido a mi primer sitio web.</p>
-  </body>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Adivina el Número</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #222;
+      color: #fff;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 {
+      color: #4caf50;
+    }
+    input[type="number"] {
+      padding: 10px;
+      font-size: 1rem;
+      width: 60px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      margin-left: 10px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Adivina el Número</h1>
+  <p>Adivina un número entre 1 y 100</p>
+
+  <input type="number" id="guess" min="1" max="100" />
+  <button onclick="checkGuess()">Adivinar</button>
+
+  <div class="result" id="resultText"></div>
+
+  <script>
+    const numberToGuess = Math.floor(Math.random() * 100) + 1;
+    let attempts = 0;
+
+    function checkGuess() {
+      const guess = parseInt(document.getElementById('guess').value);
+      const resultText = document.getElementById('resultText');
+      attempts++;
+
+      if (guess === numberToGuess) {
+        resultText.textContent = `🎉 ¡Correcto! Adivinaste el número ${numberToGuess} en ${attempts} intentos.`;
+        resultText.style.color = 'lime';
+      } else if (guess < numberToGuess) {
+        resultText.textContent = '📉 Muy bajo. Intenta un número más alto.';
+        resultText.style.color = 'orange';
+      } else if (guess > numberToGuess) {
+        resultText.textContent = '📈 Muy alto. Intenta un número más bajo.';
+        resultText.style.color = 'orange';
+      } else {
+        resultText.textContent = '❌ Ingresa un número válido.';
+        resultText.style.color = 'red';
+      }
+    }
+  </script>
+</body>
 </html>
