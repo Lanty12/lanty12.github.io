@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juego FPS con Cubos Verdes (Control A/D Invertido)</title>
+    <title>Juego FPS con Cubos Verdes (IA Mejorada, Control A/D Invertido)</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #1a1a1a; cursor: default; }
         canvas { display: block; }
@@ -27,8 +27,8 @@
             padding: 25px 30px;
             border-radius: 10px;
             text-align: center;
-            font-size: 17px; 
-            pointer-events: auto; 
+            font-size: 17px;
+            pointer-events: auto;
             max-width: 430px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.4);
         }
@@ -39,8 +39,8 @@
             font-size: 16px;
             margin-top: 20px;
             cursor: pointer;
-            background-color: #61dafb; 
-            color: #20232a; 
+            background-color: #61dafb;
+            color: #20232a;
             border: none;
             border-radius: 6px;
             transition: background-color 0.2s, transform 0.1s;
@@ -49,19 +49,19 @@
             letter-spacing: 0.5px;
         }
         .overlay-text button:hover {
-            background-color: #52c8e8; 
+            background-color: #52c8e8;
             transform: scale(1.03);
         }
         #crosshair {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 2px; height: 15px; background-color: rgba(220,220,100,0.7); transform: translate(-50%, -50%); 
+            width: 2px; height: 15px; background-color: rgba(220,220,100,0.7); transform: translate(-50%, -50%);
         }
-        #crosshair::before { 
-            content: ''; position: absolute; top: 50%; left: 50%; width: 15px; height: 2px; background-color: rgba(220,220,100,0.7); transform: translate(-50%, -50%); 
+        #crosshair::before {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 15px; height: 2px; background-color: rgba(220,220,100,0.7); transform: translate(-50%, -50%);
         }
-        .game-info { 
+        .game-info {
             position: absolute;
             font-size: 20px;
             background-color: rgba(0,0,0,0.6);
@@ -75,7 +75,7 @@
 <body>
     <div id="ui-container">
         <div id="tutorial" class="overlay-text">
-            <h2>Tutorial FPS</h2>
+            <h2>Tutorial FPS - IA Mejorada</h2>
             <p><strong>W, A, S, D:</strong> Moverse (A/D Invertido)</p>
             <p><strong>Espacio:</strong> Saltar</p>
             <p><strong>Ratón:</strong> Mirar</p>
@@ -104,21 +104,21 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- Variables y constantes (sin cambios) ---
+        // --- Variables y constantes ---
         let scene, camera, renderer;
         let playerBody;
         let bullets = [];
         let zombies = [];
-        const environmentObjects = []; 
+        const environmentObjects = [];
         const playerHeight = 1.8;
-        const playerRadius = 0.35; 
+        const playerRadius = 0.35;
         const playerSpeed = 0.11;
         const playerLookSpeed = 0.002;
         let playerVelocityY = 0;
         const gravity = 0.009;
         const jumpForce = 0.23;
         let isJumping = false;
-        let onPlatform = null; 
+        let onPlatform = null;
         const groundYLevel = 0;
         let score = 0;
         let gameRunning = false;
@@ -131,8 +131,22 @@
         const initialZombieHealth = 3;
         let maxAmmo = 10;
         let currentAmmo = maxAmmo;
-        const zombieCubeSize = 1.2; 
+        const zombieCubeSize = 1.2;
         const zombieBodyHeight = playerHeight * 0.9;
+
+        // IA Zombi Variables
+        const ZOMBIE_STATE = {
+            PATROLLING: 'PATROLLING',
+            CHASING: 'CHASING',
+            SEARCHING: 'SEARCHING',
+            ALERTED: 'ALERTED'
+        };
+        const ZOMBIE_SIGHT_RANGE = 25;
+        const ZOMBIE_ALERT_RANGE = 30;
+        const ZOMBIE_PATROL_POINT_REACH_THRESHOLD = 1.5;
+        const ZOMBIE_SEARCH_DURATION = 5000; //ms
+        let raycaster = new THREE.Raycaster();
+
         const tutorialEl = document.getElementById('tutorial');
         const startButton = document.getElementById('start-button');
         const gameOverEl = document.getElementById('game-over');
@@ -141,22 +155,22 @@
         const crosshairEl = document.getElementById('crosshair');
         const scoreInfoEl = document.getElementById('score-info');
         const ammoInfoEl = document.getElementById('ammo-info');
-        const zombieCubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00dd00 }); 
-        const houseBodyMaterial = new THREE.MeshStandardMaterial({ color: 0x9B7653 }); 
-        const houseRoofMaterial = new THREE.MeshStandardMaterial({ color: 0x703628 }); 
+
+        const zombieCubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00dd00 });
+        const houseBodyMaterial = new THREE.MeshStandardMaterial({ color: 0x9B7653 });
+        const houseRoofMaterial = new THREE.MeshStandardMaterial({ color: 0x703628 });
         const platformMaterial = new THREE.MeshStandardMaterial({ color: 0x907050 });
 
-        // --- init() y otras funciones helper (sin cambios) ---
         function init() {
             console.log("Juego: init()");
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x75b2dd);
             scene.fog = new THREE.Fog(0x75b2dd, 20, 80);
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = playerHeight; 
-            playerBody = new THREE.Object3D(); 
+            camera.position.y = playerHeight;
+            playerBody = new THREE.Object3D();
             playerBody.position.set(0, groundYLevel, 5);
-            playerBody.add(camera); 
+            playerBody.add(camera);
             scene.add(playerBody);
             playerBody.userData.aabb = new THREE.Box3();
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -186,13 +200,13 @@
             startButton.addEventListener('click', requestPointerLockAndStart);
             restartButton.addEventListener('click', requestPointerLockAndStart);
             document.addEventListener('pointerlockchange', onPointerLockChange);
-            document.addEventListener('mozpointerlockchange', onPointerLockChange); 
+            document.addEventListener('mozpointerlockchange', onPointerLockChange);
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
             renderer.domElement.addEventListener('click', () => { if (pointerLocked && gameRunning) { shoot(); }});
             document.addEventListener('mousemove', onMouseMove);
             animate();
-            showUiScreen('tutorial'); 
+            showUiScreen('tutorial');
             console.log("Juego: init() completado.");
         }
         function createHouse(x, yBase, z, width, bodyHeight, depth, roofHeight = 1, roofOverhang = 0.5) { const bodyGeo = new THREE.BoxGeometry(width, bodyHeight, depth); const bodyMesh = new THREE.Mesh(bodyGeo, houseBodyMaterial); bodyMesh.position.set(x, yBase + bodyHeight / 2, z); bodyMesh.castShadow = true; bodyMesh.receiveShadow = true; scene.add(bodyMesh); environmentObjects.push({ mesh: bodyMesh, type: 'house_body', aabb: new THREE.Box3().setFromObject(bodyMesh) }); const roofGeo = new THREE.BoxGeometry(width + roofOverhang * 2, roofHeight, depth + roofOverhang * 2); const roofMesh = new THREE.Mesh(roofGeo, houseRoofMaterial); roofMesh.position.set(x, yBase + bodyHeight + roofHeight / 2, z); roofMesh.castShadow = true; roofMesh.receiveShadow = true; scene.add(roofMesh); environmentObjects.push({ mesh: roofMesh, type: 'platform', aabb: new THREE.Box3().setFromObject(roofMesh) }); }
@@ -203,13 +217,78 @@
         function onPointerLockChange() { if (document.pointerLockElement === renderer.domElement || document.mozPointerLockElement === renderer.domElement) { if (!pointerLocked) { console.log('Juego: Pointer Locked'); pointerLocked = true; document.body.style.cursor = 'none'; if (!gameRunning) { startGameFlow(); } else { resumeGame(); }}} else { if (pointerLocked) { console.log('Juego: Pointer Unlocked'); pointerLocked = false; document.body.style.cursor = 'default'; if (gameRunning) { showUiScreen('tutorial'); }}}}
         function startGameFlow() { console.log("Juego: startGameFlow()"); gameRunning = true; score = 0; currentAmmo = maxAmmo; zombieSpeed = 0.022; updateScoreDisplay(); updateAmmoDisplay(); tutorialEl.style.display = 'none'; gameOverEl.style.display = 'none'; crosshairEl.style.display = 'block'; scoreInfoEl.style.display = 'block'; ammoInfoEl.style.display = 'block'; playerBody.position.set(2, groundYLevel, 8); playerVelocityY = 0; isJumping = false; onPlatform = null; euler.set(0, Math.PI, 0); camera.quaternion.setFromEuler(euler); bullets.forEach(b => scene.remove(b)); bullets = []; zombies.forEach(z => scene.remove(z.mesh)); zombies = []; spawnZombie(); console.log("Juego: Juego iniciado/reiniciado.");}
         function resumeGame() { console.log("Juego: resumeGame()"); gameRunning = true; tutorialEl.style.display = 'none'; gameOverEl.style.display = 'none'; crosshairEl.style.display = 'block'; scoreInfoEl.style.display = 'block'; ammoInfoEl.style.display = 'block'; document.body.style.cursor = 'none'; }
-        function spawnZombie() { const zombieGeometry = new THREE.BoxGeometry(zombieCubeSize, zombieBodyHeight, zombieCubeSize); const newZombieMesh = new THREE.Mesh(zombieGeometry, zombieCubeMaterial); newZombieMesh.castShadow = true; newZombieMesh.receiveShadow = true; const angle = Math.random() * Math.PI * 2; const radius = 20 + Math.random() * 15; let spawnY = zombieBodyHeight / 2 + groundYLevel; newZombieMesh.position.set( playerBody.position.x + Math.cos(angle) * radius, spawnY, playerBody.position.z + Math.sin(angle) * radius ); scene.add(newZombieMesh); zombies.push({ mesh: newZombieMesh, health: initialZombieHealth, aabb: new THREE.Box3().setFromObject(newZombieMesh) });}
+
+        function getRandomPatrolPoint(currentPosition) {
+            const patrolRange = 30;
+            const x = currentPosition.x + (Math.random() - 0.5) * 2 * patrolRange;
+            const z = currentPosition.z + (Math.random() - 0.5) * 2 * patrolRange;
+            const mapBoundary = 55; // Approx boundary
+            return new THREE.Vector3(
+                THREE.MathUtils.clamp(x, -mapBoundary, mapBoundary),
+                zombieBodyHeight / 2 + groundYLevel,
+                THREE.MathUtils.clamp(z, -mapBoundary, mapBoundary)
+            );
+        }
+
+        function spawnZombie() {
+            const zombieGeometry = new THREE.BoxGeometry(zombieCubeSize, zombieBodyHeight, zombieCubeSize);
+            const newZombieMesh = new THREE.Mesh(zombieGeometry, zombieCubeMaterial.clone()); // Clone material
+            newZombieMesh.castShadow = true;
+            newZombieMesh.receiveShadow = true;
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 20 + Math.random() * 15;
+            let spawnY = zombieBodyHeight / 2 + groundYLevel;
+            newZombieMesh.position.set( playerBody.position.x + Math.cos(angle) * radius, spawnY, playerBody.position.z + Math.sin(angle) * radius );
+            scene.add(newZombieMesh);
+
+            const newZombie = {
+                mesh: newZombieMesh,
+                health: initialZombieHealth,
+                aabb: new THREE.Box3().setFromObject(newZombieMesh),
+                state: ZOMBIE_STATE.PATROLLING,
+                patrolTarget: getRandomPatrolPoint(newZombieMesh.position),
+                lastSeenPlayerPosition: null,
+                searchTimer: 0,
+                targetPosition: new THREE.Vector3()
+            };
+            newZombie.targetPosition.copy(newZombie.patrolTarget);
+            zombies.push(newZombie);
+        }
+
+        function hasLineOfSight(fromPosition, targetPosition, obstacles) {
+            const direction = new THREE.Vector3().subVectors(targetPosition, fromPosition).normalize();
+            raycaster.set(fromPosition, direction);
+            const distanceToTarget = fromPosition.distanceTo(targetPosition);
+            const obstacleMeshes = obstacles.map(obj => obj.mesh).filter(mesh => mesh && mesh.geometry);
+            if (obstacleMeshes.length === 0) return true;
+            const intersects = raycaster.intersectObjects(obstacleMeshes, false);
+            if (intersects.length > 0) {
+                return intersects[0].distance >= distanceToTarget;
+            }
+            return true;
+        }
+
+        function alertNearbyZombies(alertingZombie, playerActualPosition) {
+            zombies.forEach(otherZombie => {
+                if (otherZombie === alertingZombie) return;
+                if (otherZombie.state === ZOMBIE_STATE.PATROLLING) {
+                    const distanceToAlerter = otherZombie.mesh.position.distanceTo(alertingZombie.mesh.position);
+                    if (distanceToAlerter < ZOMBIE_ALERT_RANGE) {
+                        console.log("Zombie alertado por otro!");
+                        otherZombie.state = ZOMBIE_STATE.ALERTED;
+                        otherZombie.lastSeenPlayerPosition = playerActualPosition.clone();
+                        otherZombie.targetPosition.copy(otherZombie.lastSeenPlayerPosition);
+                    }
+                }
+            });
+        }
+
         function onKeyDown(event) { if (!pointerLocked || !gameRunning) return; switch (event.key.toLowerCase()) { case 'w': moveState.forward = 1; break; case 's': moveState.backward = 1; break; case 'a': moveState.left = 1; break; case 'd': moveState.right = 1; break; case ' ': if (!isJumping) { playerVelocityY = jumpForce; isJumping = true; onPlatform = null; } break;}}
         function onKeyUp(event) { if (!pointerLocked || !gameRunning) return; switch (event.key.toLowerCase()) { case 'w': moveState.forward = 0; break; case 's': moveState.backward = 0; break; case 'a': moveState.left = 0; break; case 'd': moveState.right = 0; break;}}
         function onMouseMove(event) { if (!pointerLocked || !gameRunning) return; const movementX = event.movementX || event.mozMovementX || 0; const movementY = event.movementY || event.mozMovementY || 0; euler.y -= movementX * playerLookSpeed; euler.x -= movementY * playerLookSpeed; euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x)); camera.quaternion.setFromEuler(euler);}
         function shoot() { if (!gameRunning || currentAmmo <= 0) return; currentAmmo--; updateAmmoDisplay(); const bulletGeometry = new THREE.SphereGeometry(0.08, 6, 6); const bulletMaterial = new THREE.MeshStandardMaterial({ color: 0xff4500, emissive: 0xff4500 }); const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial); camera.getWorldPosition(bullet.position); const direction = new THREE.Vector3(); camera.getWorldDirection(direction); bullet.userData.velocity = direction.multiplyScalar(bulletSpeed); bullet.position.addScaledVector(bullet.userData.velocity.clone().normalize(), playerRadius + 0.2); scene.add(bullet); bullets.push(bullet); if (currentAmmo === 0) { setTimeout(() => { currentAmmo = maxAmmo; updateAmmoDisplay(); }, 1800); }}
         function updatePlayerAABB() { const center = playerBody.position.clone(); center.y += playerHeight / 2; const size = new THREE.Vector3(playerRadius * 2, playerHeight, playerRadius * 2); playerBody.userData.aabb.setFromCenterAndSize(center, size);}
-        
+
         const playerDisplacement = new THREE.Vector3();
         const forwardDirection = new THREE.Vector3();
         const sideDirection = new THREE.Vector3();
@@ -217,23 +296,21 @@
         function updatePlayerMovement() {
             if (!gameRunning || !pointerLocked) return;
             const oldYPosition = playerBody.position.y;
-
-            playerBody.position.y += playerVelocityY; 
+            playerBody.position.y += playerVelocityY;
             const currentGround = onPlatform ? onPlatform.aabb.max.y : groundYLevel;
             if (playerBody.position.y > currentGround || playerVelocityY > 0) {
                  playerVelocityY -= gravity;
-            } else { 
-                playerVelocityY = 0; playerBody.position.y = currentGround; isJumping = false; 
+            } else {
+                playerVelocityY = 0; playerBody.position.y = currentGround; isJumping = false;
             }
-            updatePlayerAABB(); 
-
+            updatePlayerAABB();
             let landedThisFrame = false;
-            if (playerVelocityY < 0) { 
+            if (playerVelocityY < 0) {
                 for (const obj of environmentObjects) {
-                    if (obj.type === 'platform' || obj.type === 'house_body') { 
+                    if (obj.type === 'platform' || obj.type === 'house_body') {
                         if (playerBody.userData.aabb.intersectsBox(obj.aabb)) {
                             if (oldYPosition >= obj.aabb.max.y -0.05 && playerBody.position.y <= obj.aabb.max.y + 0.05) {
-                                playerBody.position.y = obj.aabb.max.y; playerVelocityY = 0; isJumping = false; onPlatform = obj; landedThisFrame = true; break; 
+                                playerBody.position.y = obj.aabb.max.y; playerVelocityY = 0; isJumping = false; onPlatform = obj; landedThisFrame = true; break;
                             }
                         }
                     }
@@ -242,44 +319,35 @@
              if (!landedThisFrame && playerBody.position.y < groundYLevel && playerVelocityY <=0) {
                 playerBody.position.y = groundYLevel; playerVelocityY = 0; isJumping = false; onPlatform = null;
             }
-            updatePlayerAABB(); 
-
+            updatePlayerAABB();
             playerDisplacement.set(0,0,0);
             camera.getWorldDirection(forwardDirection);
             forwardDirection.y = 0; forwardDirection.normalize();
             sideDirection.crossVectors(camera.up, forwardDirection).normalize();
-
             if (moveState.forward) playerDisplacement.add(forwardDirection);
             if (moveState.backward) playerDisplacement.sub(forwardDirection);
-            
-            // ***** CONTROL LATERAL INVERTIDO *****
-            if (moveState.left) playerDisplacement.add(sideDirection);    // 'A' MUEVE A LA DERECHA
-            if (moveState.right) playerDisplacement.sub(sideDirection); // 'D' MUEVE A LA IZQUIERDA
-            // ***** FIN DEL CAMBIO *****
-            
+            if (moveState.left) playerDisplacement.add(sideDirection);
+            if (moveState.right) playerDisplacement.sub(sideDirection);
             if (playerDisplacement.lengthSq() > 0) {
                 playerDisplacement.normalize().multiplyScalar(playerSpeed);
             }
-            
             const originalPosition = playerBody.position.clone();
-            
             playerBody.position.x += playerDisplacement.x;
-            updatePlayerAABB(); 
+            updatePlayerAABB();
             for(const obj of environmentObjects) {
                 if(playerBody.userData.aabb.intersectsBox(obj.aabb)) {
                     playerBody.position.x = originalPosition.x; updatePlayerAABB(); break;
                 }
             }
-
             playerBody.position.z += playerDisplacement.z;
-            updatePlayerAABB(); 
+            updatePlayerAABB();
             for(const obj of environmentObjects) {
                 if(playerBody.userData.aabb.intersectsBox(obj.aabb)) {
                     playerBody.position.z = originalPosition.z; updatePlayerAABB(); break;
                 }
             }
         }
-        
+
         function updateGameLogic() {
             if (!gameRunning || !pointerLocked) return;
             updatePlayerMovement();
@@ -292,76 +360,167 @@
                 }
             }
 
+            const allEnvironmentObstacles = [...environmentObjects]; // Use for LoS checks
+
             for (let i = zombies.length - 1; i >= 0; i--) {
                 const zombieObj = zombies[i];
-                if (!zombieObj || !zombieObj.mesh) { zombies.splice(i,1); continue; } 
-                
+                if (!zombieObj || !zombieObj.mesh) { zombies.splice(i,1); continue; }
+
                 const zombieMesh = zombieObj.mesh;
-                zombieObj.aabb.setFromObject(zombieMesh); 
+                zombieObj.aabb.setFromObject(zombieMesh);
 
-                const directionToPlayer = new THREE.Vector3().subVectors(playerBody.position, zombieMesh.position);
-                directionToPlayer.y = 0; 
-                if (directionToPlayer.lengthSq() > 0.001) directionToPlayer.normalize();
-                else directionToPlayer.set(0,0,0); 
-                
-                const movementStep = directionToPlayer.clone().multiplyScalar(zombieSpeed);
-                let canZombieMove = true;
-                if (movementStep.lengthSq() > 0) {
-                    const nextZombiePos = zombieMesh.position.clone().add(movementStep);
-                    const zombieSize = new THREE.Vector3(zombieCubeSize, zombieBodyHeight, zombieCubeSize); 
-                    const nextZombieAABB = new THREE.Box3().setFromCenterAndSize(nextZombiePos, zombieSize);
+                const playerActualPosition = playerBody.position.clone();
+                playerActualPosition.y = zombieMesh.position.y; // Compare on same Y plane
+                const distanceToPlayer = zombieMesh.position.distanceTo(playerActualPosition);
 
-                    for(const envObj of environmentObjects){
-                        if(nextZombieAABB.intersectsBox(envObj.aabb)){
-                            canZombieMove = false;
-                            zombieMesh.rotation.y += (Math.random() - 0.5) * 0.5; 
-                            break;
-                        }
+                let playerInSight = false;
+                if (distanceToPlayer < ZOMBIE_SIGHT_RANGE) {
+                    if (hasLineOfSight(zombieMesh.position, playerActualPosition, allEnvironmentObstacles)) {
+                        playerInSight = true;
                     }
                 }
 
-                if(canZombieMove && movementStep.lengthSq() > 0) {
-                    zombieMesh.position.add(movementStep);
-                }
-                
-                zombieMesh.lookAt(playerBody.position.x, zombieMesh.position.y, playerBody.position.z);
-                updatePlayerAABB(); 
+                switch (zombieObj.state) {
+                    case ZOMBIE_STATE.PATROLLING:
+                        if (playerInSight) {
+                            zombieObj.state = ZOMBIE_STATE.CHASING;
+                            zombieObj.lastSeenPlayerPosition = playerActualPosition.clone();
+                            zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition);
+                            alertNearbyZombies(zombieObj, playerActualPosition);
+                        } else {
+                            if (zombieMesh.position.distanceTo(zombieObj.patrolTarget) < ZOMBIE_PATROL_POINT_REACH_THRESHOLD) {
+                                zombieObj.patrolTarget = getRandomPatrolPoint(zombieMesh.position);
+                            }
+                            zombieObj.targetPosition.copy(zombieObj.patrolTarget);
+                        }
+                        break;
 
+                    case ZOMBIE_STATE.ALERTED:
+                        if (playerInSight) {
+                            zombieObj.state = ZOMBIE_STATE.CHASING;
+                            zombieObj.lastSeenPlayerPosition = playerActualPosition.clone();
+                            zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition);
+                        } else {
+                            if (zombieMesh.position.distanceTo(zombieObj.lastSeenPlayerPosition) < ZOMBIE_PATROL_POINT_REACH_THRESHOLD) {
+                                zombieObj.state = ZOMBIE_STATE.SEARCHING;
+                                zombieObj.searchTimer = Date.now();
+                            } else {
+                                zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition);
+                            }
+                        }
+                        break;
+
+                    case ZOMBIE_STATE.CHASING:
+                        if (playerInSight) {
+                            zombieObj.lastSeenPlayerPosition = playerActualPosition.clone();
+                            zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition);
+                        } else {
+                            zombieObj.state = ZOMBIE_STATE.SEARCHING;
+                            zombieObj.searchTimer = Date.now();
+                            zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition); // Keep going to last seen
+                        }
+                        break;
+
+                    case ZOMBIE_STATE.SEARCHING:
+                        if (playerInSight) {
+                            zombieObj.state = ZOMBIE_STATE.CHASING;
+                            zombieObj.lastSeenPlayerPosition = playerActualPosition.clone();
+                            zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition);
+                        } else {
+                            if (Date.now() - zombieObj.searchTimer > ZOMBIE_SEARCH_DURATION) {
+                                zombieObj.state = ZOMBIE_STATE.PATROLLING;
+                                zombieObj.patrolTarget = getRandomPatrolPoint(zombieMesh.position);
+                                zombieObj.targetPosition.copy(zombieObj.patrolTarget);
+                            } else {
+                                if (zombieMesh.position.distanceTo(zombieObj.targetPosition) < ZOMBIE_PATROL_POINT_REACH_THRESHOLD) {
+                                     const searchNearbyPoint = zombieObj.lastSeenPlayerPosition.clone().add(
+                                        new THREE.Vector3( (Math.random()-0.5) * 10, 0, (Math.random()-0.5) * 10)
+                                     );
+                                     searchNearbyPoint.y = zombieBodyHeight / 2 + groundYLevel;
+                                     zombieObj.targetPosition.copy(searchNearbyPoint);
+                                }
+                            }
+                        }
+                        break;
+                }
+
+                const directionToTarget = new THREE.Vector3().subVectors(zombieObj.targetPosition, zombieMesh.position);
+                directionToTarget.y = 0;
+
+                if (directionToTarget.lengthSq() > 0.001) {
+                    directionToTarget.normalize();
+                    const movementStep = directionToTarget.clone().multiplyScalar(zombieSpeed);
+                    let canZombieMove = true;
+
+                    if (movementStep.lengthSq() > 0) {
+                        const nextZombiePos = zombieMesh.position.clone().add(movementStep);
+                        const zombieSize = new THREE.Vector3(zombieCubeSize, zombieBodyHeight, zombieCubeSize);
+                        const nextZombieAABB = new THREE.Box3().setFromCenterAndSize(nextZombiePos, zombieSize);
+                        for(const envObj of allEnvironmentObstacles){
+                            if(nextZombieAABB.intersectsBox(envObj.aabb)){
+                                canZombieMove = false;
+                                if (zombieObj.state !== ZOMBIE_STATE.CHASING || Math.random() < 0.1) {
+                                   zombieObj.targetPosition.copy(getRandomPatrolPoint(zombieMesh.position));
+                                   if(zombieObj.state !== ZOMBIE_STATE.CHASING) zombieObj.state = ZOMBIE_STATE.PATROLLING;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    if(canZombieMove && movementStep.lengthSq() > 0) {
+                        zombieMesh.position.add(movementStep);
+                    }
+                }
+                const lookAtPosition = zombieObj.targetPosition.clone();
+                lookAtPosition.y = zombieMesh.position.y;
+                if (zombieMesh.position.distanceToSquared(lookAtPosition) > 0.01) {
+                    zombieMesh.lookAt(lookAtPosition);
+                }
+
+                updatePlayerAABB();
                 if (playerBody.userData.aabb.intersectsBox(zombieObj.aabb)) {
                      endGame("¡Un Zombie te atrapó!"); return;
                 }
 
                 for (let j = bullets.length - 1; j >= 0; j--) {
                     const bullet = bullets[j];
-                    const bulletAABB = new THREE.Box3().setFromObject(bullet); 
+                    const bulletAABB = new THREE.Box3().setFromObject(bullet);
                     if (bulletAABB.intersectsBox(zombieObj.aabb)) {
                         scene.remove(bullet); bullets.splice(j, 1);
                         zombieObj.health--;
+
+                        if (zombieObj.state === ZOMBIE_STATE.PATROLLING) {
+                            zombieObj.state = ZOMBIE_STATE.CHASING;
+                            zombieObj.lastSeenPlayerPosition = playerActualPosition.clone();
+                            zombieObj.targetPosition.copy(zombieObj.lastSeenPlayerPosition);
+                            alertNearbyZombies(zombieObj, playerActualPosition);
+                        }
+
                         if (zombieObj.health <= 0) {
                             scene.remove(zombieMesh); zombies.splice(i, 1);
                             score += 10; updateScoreDisplay();
                             spawnZombie();
-                            zombieSpeed = Math.min(zombieSpeed + 0.0035, 0.08); 
+                            zombieSpeed = Math.min(zombieSpeed + 0.0035, 0.08);
                         } else {
-                            zombieMesh.material.color.setHex(0xff0000); 
-                            setTimeout(() => { 
-                                if (zombieMesh.material) { 
-                                    zombieMesh.material.color.setHex(0x00dd00); 
+                            zombieMesh.material.color.setHex(0xff0000);
+                            setTimeout(() => {
+                                if (zombieMesh.material) {
+                                    zombieMesh.material.color.setHex(0x00dd00);
                                 }
                             }, 120);
                         }
-                        break; 
+                        break;
                     }
                 }
             }
         }
-        
+
         function updateScoreDisplay() { scoreInfoEl.innerText = `Puntuación: ${score}`; }
         function updateAmmoDisplay() { ammoInfoEl.innerText = `Balas: ${currentAmmo}/${maxAmmo}`;}
         function endGame(reason) { console.log(`Juego: endGame - ${reason}`); gameRunning = false; finalScoreEl.innerText = score; showUiScreen('gameOver');}
         function animate() { requestAnimationFrame(animate); if (gameRunning && pointerLocked) { updateGameLogic(); } renderer.render(scene, camera);}
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);});
-        
+
         init();
     </script>
 </body>
